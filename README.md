@@ -14,7 +14,7 @@ A web application for managing trekking expeditions and bookings. Admins create 
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/24f2000058/trekking_mgmt_app_V2_2026t2
 cd trekking_mgmt_app_V2_2026t2
 
 # 2. Create and activate a Python virtual environment
