@@ -1,1 +1,3 @@
-# Milestone 1: SQLAlchemy (db) and Flask-Caching (cache) instances go here
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
