@@ -24,6 +24,9 @@ def create_app():
     from routes.auth import auth_bp
     app.register_blueprint(auth_bp)
 
+    from routes.admin import admin_bp
+    app.register_blueprint(admin_bp)
+
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
     def serve_spa(path):
