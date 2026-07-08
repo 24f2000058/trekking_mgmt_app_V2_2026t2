@@ -47,7 +47,7 @@ python backend/run.py
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2, 3**
+**Completed milestones: 0, 1, 2, 3, 4**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -66,4 +66,14 @@ python backend/run.py
     - `GET /search` — cross-entity search (treks/users/staff).
   - Frontend: real `AdminDashboard` with stat cards and Bootstrap tabs (Overview, Treks, Staff, Users, Bookings, Search), backed by four new components under `backend/static/js/views/admin/`: `TrekManagement`, `StaffManagement`, `UserManagement`, `BookingManagement`.
 
-Not yet implemented: staff/trekker feature routes (booking flow, staff trek management), Redis caching, Celery background jobs — these arrive in later milestones.
+- **Milestone 4** — Trek staff dashboard and trek operations:
+  - Backend: `staff_bp` blueprint (`/api/staff/*`), all endpoints guarded by `role_required("staff")` plus a per-route check that the trek is assigned to the logged-in staff member's profile (403 otherwise):
+    - `GET /my-treks` — treks assigned to the logged-in staff member, with active (non-cancelled) booking counts.
+    - `GET /treks/<id>/participants` — registered (non-cancelled) trekkers for one of the staff member's treks.
+    - `PUT /treks/<id>/slots` — update `available_slots` (validated against `total_slots`).
+    - `PUT /treks/<id>/status` — update trek status, restricted to `Open`/`Closed`/`Completed` (staff cannot set `Pending`/`Approved`).
+    - `PUT /treks/<id>/participants/<booking_id>/status` — mark a booking `Completed` or `Cancelled` (cancelling restores a slot).
+    - `GET /dashboard-summary` — assigned trek count, active trek count, total participant count.
+  - Frontend: real `StaffDashboard` with summary cards, backed by two new components under `backend/static/js/views/staff/`: `AssignedTreks` (trek cards with inline slot/status management) and `ParticipantList` (registered trekkers for a selected trek).
+
+Not yet implemented: trekker booking flow, Redis caching, Celery background jobs — these arrive in later milestones.
