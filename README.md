@@ -44,3 +44,16 @@ python backend/run.py
 > **Note:** Override these via `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables, and set a strong `SECRET_KEY` env var before any production deployment.
 
 > Exact Celery worker startup commands will be added in Milestone 3.
+
+## Current Status
+
+**Completed milestones: 0, 1, 2**
+
+- **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
+- **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
+- **Milestone 2** — Session-based authentication and role-based access:
+  - Backend: Flask-Login session auth, `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`; `login_required_api` and `role_required` helper decorators for use by future blueprints.
+  - Frontend: Vue 3 (CDN) SPA served from `backend/static/`, hash-based Vue Router with `/login`, `/register`, `/admin`, `/staff`, `/dashboard` routes, a shared `Navbar` component, and role-specific dashboard placeholders.
+  - Trekkers can self-register and log in; staff and admin accounts are login-only (no self-registration).
+
+Not yet implemented: admin/staff/trekker feature routes (trek CRUD, bookings, etc.), Redis caching, Celery background jobs — these arrive in later milestones.
