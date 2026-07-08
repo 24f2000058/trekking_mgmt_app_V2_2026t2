@@ -47,7 +47,7 @@ python backend/run.py
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2**
+**Completed milestones: 0, 1, 2, 3**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -55,5 +55,15 @@ python backend/run.py
   - Backend: Flask-Login session auth, `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`; `login_required_api` and `role_required` helper decorators for use by future blueprints.
   - Frontend: Vue 3 (CDN) SPA served from `backend/static/`, hash-based Vue Router with `/login`, `/register`, `/admin`, `/staff`, `/dashboard` routes, a shared `Navbar` component, and role-specific dashboard placeholders.
   - Trekkers can self-register and log in; staff and admin accounts are login-only (no self-registration).
+- **Milestone 3** — Admin dashboard and full management features:
+  - Backend: `admin_bp` blueprint (`/api/admin/*`), all endpoints guarded by `role_required("admin")`:
+    - `GET /stats` — dashboard summary stats (trek/user/staff/booking counts, status breakdowns, top treks).
+    - `GET/POST /treks`, `PUT/DELETE /treks/<id>`, `PUT /treks/<id>/approve`, `PUT /treks/<id>/assign-staff` — full trek CRUD, approval, and staff assignment.
+    - `GET /staff-list` — active staff for assignment dropdowns.
+    - `GET/POST /staff`, `PUT /staff/<user_id>/status` — staff creation, listing (with assigned treks), blacklist/activate.
+    - `GET /users`, `PUT /users/<user_id>/status` — trekker listing, blacklist/activate.
+    - `GET /bookings` — all bookings across the system.
+    - `GET /search` — cross-entity search (treks/users/staff).
+  - Frontend: real `AdminDashboard` with stat cards and Bootstrap tabs (Overview, Treks, Staff, Users, Bookings, Search), backed by four new components under `backend/static/js/views/admin/`: `TrekManagement`, `StaffManagement`, `UserManagement`, `BookingManagement`.
 
-Not yet implemented: admin/staff/trekker feature routes (trek CRUD, bookings, etc.), Redis caching, Celery background jobs — these arrive in later milestones.
+Not yet implemented: staff/trekker feature routes (booking flow, staff trek management), Redis caching, Celery background jobs — these arrive in later milestones.
