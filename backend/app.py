@@ -30,6 +30,9 @@ def create_app():
     from routes.staff import staff_bp
     app.register_blueprint(staff_bp)
 
+    from routes.user import user_bp
+    app.register_blueprint(user_bp)
+
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
     def serve_spa(path):
