@@ -47,7 +47,7 @@ python backend/run.py
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2, 3, 4**
+**Completed milestones: 0, 1, 2, 3, 4, 5**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -76,4 +76,13 @@ python backend/run.py
     - `GET /dashboard-summary` — assigned trek count, active trek count, total participant count.
   - Frontend: real `StaffDashboard` with summary cards, backed by two new components under `backend/static/js/views/staff/`: `AssignedTreks` (trek cards with inline slot/status management) and `ParticipantList` (registered trekkers for a selected trek).
 
-Not yet implemented: trekker booking flow, Redis caching, Celery background jobs — these arrive in later milestones.
+- **Milestone 5** — User dashboard and trek booking system:
+  - Backend: `user_bp` blueprint (`/api/user/*`):
+    - `GET /treks` — browse `Open` treks only, with `search`/`difficulty`/`location`/`duration` filters and an `is_booked` flag per trek.
+    - `POST /treks/<id>/book` — book a trek, enforcing open-status, available-slots, and duplicate-active-booking checks; reuses an existing cancelled booking row for the same user/trek to satisfy the `(user_id, trek_id)` unique constraint.
+    - `GET /bookings` — full booking history for the logged-in trekker (own bookings only), optional `status` filter.
+    - `PUT /bookings/<id>/cancel` — cancel one's own booking and restore the trek slot.
+    - `GET/PUT /profile` (`login_required_api`) — view/update own name and phone, optional password change; email and role are immutable from this endpoint.
+  - Frontend: real `UserDashboard` with stat cards and Bootstrap tabs, backed by three new components under `backend/static/js/views/user/`: `TrekBrowser` (search/filter/book), `MyBookings` (history + cancel), `EditProfile`.
+
+Not yet implemented: Redis caching, Celery background jobs — these arrive in later milestones.
