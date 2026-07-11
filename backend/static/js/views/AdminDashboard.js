@@ -56,6 +56,7 @@ const AdminDashboard = {
         <li class="nav-item"><a class="nav-link" :class="{active: currentTab==='users'}" @click.prevent="currentTab='users'" href="#">Users</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: currentTab==='bookings'}" @click.prevent="currentTab='bookings'" href="#">Bookings</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: currentTab==='search'}" @click.prevent="currentTab='search'" href="#">Search</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: currentTab==='history'}" @click.prevent="currentTab='history'" href="#">History</a></li>
       </ul>
 
       <div class="tab-content">
@@ -162,6 +163,38 @@ const AdminDashboard = {
           </div>
         </div>
 
+        <div v-if="currentTab === 'history'">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Completed Trek History</h5>
+              <p v-if="historyList.length === 0" class="alert alert-info">
+                No completed treks yet.
+              </p>
+              <table v-else class="table table-striped table-hover">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Trek</th><th>Location</th><th>Staff</th>
+                    <th>Start</th><th>End</th>
+                    <th>Completed</th><th>Cancelled</th><th>Total Booked</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="h in historyList" :key="h.trek_id">
+                    <td>{{ h.name }}</td>
+                    <td>{{ h.location }}</td>
+                    <td>{{ h.assigned_staff_name || '—' }}</td>
+                    <td>{{ h.start_date ? h.start_date.substring(0,10) : '—' }}</td>
+                    <td>{{ h.end_date ? h.end_date.substring(0,10) : '—' }}</td>
+                    <td><span class="badge bg-success">{{ h.completed_count }}</span></td>
+                    <td><span class="badge bg-danger">{{ h.cancelled_count }}</span></td>
+                    <td>{{ h.total_ever_booked }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   `,
@@ -172,7 +205,8 @@ const AdminDashboard = {
       stats: null,
       searchQuery: "",
       searchType: "all",
-      searchResults: null
+      searchResults: null,
+      historyList: []
     };
   },
 
@@ -187,12 +221,18 @@ const AdminDashboard = {
 
   created() {
     this.fetchStats();
+    this.fetchHistory();
   },
 
   methods: {
     async fetchStats() {
       const r = await fetch("/api/admin/stats", { credentials: "include" });
       this.stats = await r.json();
+    },
+
+    async fetchHistory() {
+      const r = await fetch("/api/admin/history", { credentials: "include" });
+      this.historyList = await r.json();
     },
 
     async doSearch() {

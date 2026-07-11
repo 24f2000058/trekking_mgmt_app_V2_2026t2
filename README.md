@@ -47,7 +47,7 @@ python backend/run.py
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2, 3, 4, 5**
+**Completed milestones: 0, 1, 2, 3, 4, 5, 6**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -85,4 +85,8 @@ python backend/run.py
     - `GET/PUT /profile` (`login_required_api`) — view/update own name and phone, optional password change; email and role are immutable from this endpoint.
   - Frontend: real `UserDashboard` with stat cards and Bootstrap tabs, backed by three new components under `backend/static/js/views/user/`: `TrekBrowser` (search/filter/book), `MyBookings` (history + cancel), `EditProfile`.
 
-Not yet implemented: Redis caching, Celery background jobs — these arrive in later milestones.
+- **Milestone 6** — Trek status transition rules and history protection (patches against the Milestone 6 spec, no new blueprints):
+  - **Atomic slot accounting** — booking/cancelling now uses a single conditional `UPDATE ... WHERE available_slots > 0` (or `< total_slots` for restores) instead of read-then-write in Python, closing a race condition that could cause overbooking under concurrent requests.
+  - **Trek status transition guards** — treks must now move `Pending → Approved → Open → Closed → Completed` in order: admin can only approve `Pending` treks, staff cannot change the status of a not-yet-approved or already-`Completed` trek, and admin's general trek-update endpoint rejects any `status` change on a `Completed` trek (other fields remain editable).
+  - **Trek deletion protection** — `DELETE /api/admin/treks/<id>` now refuses (409) to delete a trek that has any booking history (`Booked`, `Cancelled`, or `Completed`), preserving trekking history; only treks with zero bookings can be deleted.
+  - **Admin trek history view** — new `GET /api/admin/history` endpoint lists all `Completed` treks with per-trek completed/cancelled/total-booked counts, surfaced in the Admin dashboard under a new "History" tab.

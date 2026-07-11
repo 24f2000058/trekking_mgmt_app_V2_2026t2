@@ -279,10 +279,15 @@ const TrekManagement = {
     },
 
     async deleteTrek(trekId) {
-      if (!window.confirm("Delete this trek and all its bookings?")) return;
-      await fetch(`/api/admin/treks/${trekId}`, {
+      if (!window.confirm("Delete this trek?")) return;
+      const r = await fetch(`/api/admin/treks/${trekId}`, {
         method: "DELETE", credentials: "include"
       });
+      const data = await r.json();
+      if (!r.ok) {
+        alert(data.error);
+        return;
+      }
       this.fetchTreks();
     },
 
