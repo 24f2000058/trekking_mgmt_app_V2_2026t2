@@ -65,12 +65,18 @@ def book_trek(trek_id):
     if trek.status != "Open":
         return jsonify({"error": "This trek is not open for booking."}), 400
 
-    if trek.available_slots <= 0:
-        return jsonify({"error": "No slots available for this trek."}), 400
-
     existing = Booking.query.filter_by(user_id=current_user.id, trek_id=trek_id).first()
     if existing and existing.status == "Booked":
         return jsonify({"error": "You have already booked this trek."}), 409
+
+    result = db.session.execute(
+        db.update(Trek)
+        .where(Trek.id == trek_id, Trek.available_slots > 0)
+        .values(available_slots=Trek.available_slots - 1)
+    )
+    if result.rowcount == 0:
+        db.session.rollback()
+        return jsonify({"error": "No slots available for this trek."}), 400
 
     if existing:
         existing.status = "Booked"
@@ -85,7 +91,6 @@ def book_trek(trek_id):
         )
         db.session.add(booking)
 
-    trek.available_slots -= 1
     db.session.commit()
 
     return jsonify({
@@ -137,8 +142,11 @@ def cancel_booking(booking_id):
         return jsonify({"error": "Completed bookings cannot be cancelled."}), 400
 
     booking.status = "Cancelled"
-    trek = booking.trek
-    trek.available_slots = min(trek.available_slots + 1, trek.total_slots)
+    db.session.execute(
+        db.update(Trek)
+        .where(Trek.id == booking.trek_id, Trek.available_slots < Trek.total_slots)
+        .values(available_slots=Trek.available_slots + 1)
+    )
     db.session.commit()
 
     return jsonify({"message": "Booking cancelled. Slot has been restored."})

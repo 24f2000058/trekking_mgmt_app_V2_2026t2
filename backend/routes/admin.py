@@ -110,6 +110,10 @@ def update_trek(trek_id):
         return jsonify({"error": "Trek not found"}), 404
 
     data = request.get_json(silent=True) or {}
+
+    if "status" in data and trek.status == "Completed":
+        return jsonify({"error": "Completed treks cannot have their status changed."}), 400
+
     date_fields = {"start_date", "end_date"}
     updatable = [
         "name", "location", "difficulty", "duration_days", "total_slots",
@@ -133,8 +137,13 @@ def delete_trek(trek_id):
     if not trek:
         return jsonify({"error": "Trek not found"}), 404
 
-    Booking.query.filter_by(trek_id=trek.id).update({"status": "Cancelled"})
-    Booking.query.filter_by(trek_id=trek.id).delete()
+    has_bookings = Booking.query.filter_by(trek_id=trek.id).first() is not None
+    if has_bookings:
+        return jsonify({
+            "error": "This trek has booking history and cannot be deleted. "
+                     "Set its status to Closed or Completed instead, or edit its details."
+        }), 409
+
     db.session.delete(trek)
     db.session.commit()
     return jsonify({"message": "Trek deleted"}), 200
@@ -146,6 +155,8 @@ def approve_trek(trek_id):
     trek = Trek.query.get(trek_id)
     if not trek:
         return jsonify({"error": "Trek not found"}), 404
+    if trek.status != "Pending":
+        return jsonify({"error": "Only treks with status 'Pending' can be approved."}), 400
     trek.status = "Approved"
     db.session.commit()
     return jsonify({"message": "Trek approved"}), 200
@@ -309,6 +320,34 @@ def list_bookings():
         "status": b.status,
         "payment_status": b.payment_status,
     } for b in bookings]
+    return jsonify(result), 200
+
+
+@admin_bp.route("/history", methods=["GET"])
+@role_required("admin")
+def trek_history():
+    treks = (
+        Trek.query.filter_by(status="Completed")
+        .order_by(Trek.end_date.desc())
+        .all()
+    )
+
+    result = []
+    for trek in treks:
+        completed_count = Booking.query.filter_by(trek_id=trek.id, status="Completed").count()
+        cancelled_count = Booking.query.filter_by(trek_id=trek.id, status="Cancelled").count()
+        total_ever_booked = Booking.query.filter_by(trek_id=trek.id).count()
+        result.append({
+            "trek_id": trek.id,
+            "name": trek.name,
+            "location": trek.location,
+            "start_date": trek.start_date.isoformat() if trek.start_date else None,
+            "end_date": trek.end_date.isoformat() if trek.end_date else None,
+            "assigned_staff_name": trek.assigned_staff.user.name if trek.assigned_staff else None,
+            "completed_count": completed_count,
+            "cancelled_count": cancelled_count,
+            "total_ever_booked": total_ever_booked,
+        })
     return jsonify(result), 200
 
 

@@ -120,6 +120,11 @@ def update_status(trek_id):
     if status not in ("Open", "Closed", "Completed"):
         return jsonify({"error": "Invalid status. Allowed: Open, Closed, Completed"}), 400
 
+    if trek.status == "Pending":
+        return jsonify({"error": "This trek has not been approved by admin yet."}), 400
+    if trek.status == "Completed":
+        return jsonify({"error": "Completed treks cannot be reopened or modified."}), 400
+
     trek.status = status
     db.session.commit()
     return jsonify({"message": "Trek status updated", "status": trek.status}), 200
@@ -149,7 +154,11 @@ def update_booking_status(trek_id, booking_id):
         return jsonify({"error": "Booking not found for this trek"}), 404
 
     if status == "Cancelled" and booking.status == "Booked":
-        trek.available_slots = min(trek.available_slots + 1, trek.total_slots)
+        db.session.execute(
+            db.update(Trek)
+            .where(Trek.id == trek.id, Trek.available_slots < Trek.total_slots)
+            .values(available_slots=Trek.available_slots + 1)
+        )
 
     booking.status = status
     db.session.commit()
