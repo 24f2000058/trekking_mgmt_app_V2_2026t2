@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_login import current_user
-from backend.extensions import db
+from backend.extensions import db, cache
 from backend.models import StaffProfile, Trek, Booking
 from backend.routes.helpers import role_required
 
@@ -98,6 +98,8 @@ def update_slots(trek_id):
 
     trek.available_slots = available_slots
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Slots updated", "available_slots": trek.available_slots}), 200
 
 
@@ -127,6 +129,8 @@ def update_status(trek_id):
 
     trek.status = status
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Trek status updated", "status": trek.status}), 200
 
 
@@ -162,6 +166,8 @@ def update_booking_status(trek_id, booking_id):
 
     booking.status = status
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Booking status updated"}), 200
 
 

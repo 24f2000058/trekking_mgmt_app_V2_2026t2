@@ -1,7 +1,8 @@
+import time
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
-from backend.extensions import db
+from backend.extensions import db, cache
 from backend.models import User, StaffProfile, Trek, Booking
 from backend.routes.helpers import role_required
 from backend.tasks.jobs import send_daily_reminders, generate_monthly_report
@@ -32,6 +33,17 @@ def trek_to_dict(trek):
 @admin_bp.route("/stats", methods=["GET"])
 @role_required("admin")
 def stats():
+    start_time = time.time()
+    cached_stats = cache.get("admin_stats")
+
+    if cached_stats is not None:
+        print("[CACHE HIT] admin_stats")
+        elapsed = round((time.time() - start_time) * 1000, 2)
+        print(f"[TIMING] /api/admin/stats resolved in {elapsed}ms")
+        return jsonify(cached_stats)
+
+    print("[CACHE MISS] admin_stats — querying database")
+
     total_treks = Trek.query.count()
     total_users = User.query.filter_by(role="trekker").count()
     total_staff = User.query.filter_by(role="staff").count()
@@ -54,7 +66,7 @@ def stats():
     )
     top_treks = [{"name": name, "bookings": cnt} for name, cnt in top_treks_rows]
 
-    return jsonify({
+    stats = {
         "total_treks": total_treks,
         "total_users": total_users,
         "total_staff": total_staff,
@@ -62,7 +74,12 @@ def stats():
         "trek_by_status": trek_by_status,
         "bookings_by_status": bookings_by_status,
         "top_treks": top_treks,
-    }), 200
+    }
+
+    cache.set("admin_stats", stats, timeout=30)
+    elapsed = round((time.time() - start_time) * 1000, 2)
+    print(f"[TIMING] /api/admin/stats resolved in {elapsed}ms")
+    return jsonify(stats), 200
 
 
 @admin_bp.route("/treks", methods=["GET"])
@@ -100,6 +117,8 @@ def create_trek():
     )
     db.session.add(trek)
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Trek created", "id": trek.id}), 201
 
 
@@ -128,6 +147,8 @@ def update_trek(trek_id):
             setattr(trek, field, value)
 
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Trek updated"}), 200
 
 
@@ -147,6 +168,8 @@ def delete_trek(trek_id):
 
     db.session.delete(trek)
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Trek deleted"}), 200
 
 
@@ -160,6 +183,8 @@ def approve_trek(trek_id):
         return jsonify({"error": "Only treks with status 'Pending' can be approved."}), 400
     trek.status = "Approved"
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Trek approved"}), 200
 
 
@@ -178,6 +203,8 @@ def assign_staff(trek_id):
 
     trek.assigned_staff_id = staff_profile_id
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
     return jsonify({"message": "Staff assigned to trek"}), 200
 
 
