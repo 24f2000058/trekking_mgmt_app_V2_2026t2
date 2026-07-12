@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, current_user
-from extensions import db
-from models import User
+from backend.extensions import db
+from backend.models import User
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 

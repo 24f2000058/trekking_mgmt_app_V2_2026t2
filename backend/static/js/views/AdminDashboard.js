@@ -90,6 +90,28 @@ const AdminDashboard = {
               </div>
             </div>
           </div>
+
+          <div class="card mt-3">
+            <div class="card-body">
+              <h6 class="card-title">Admin Tools (Manual Job Triggers)</h6>
+              <p class="text-muted small">
+                These jobs normally run automatically on a schedule
+                (reminders daily, report monthly). Use these buttons to
+                trigger them manually for testing/demo purposes.
+              </p>
+              <button class="btn btn-sm btn-outline-secondary me-2"
+                      @click="triggerReminders()">
+                Trigger Daily Reminders Now
+              </button>
+              <button class="btn btn-sm btn-outline-secondary"
+                      @click="triggerMonthlyReport()">
+                Trigger Monthly Report Now
+              </button>
+              <div v-if="toolsMsg" class="alert alert-info mt-2 py-2 small">
+                {{ toolsMsg }}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-if="currentTab === 'treks'">
@@ -206,7 +228,8 @@ const AdminDashboard = {
       searchQuery: "",
       searchType: "all",
       searchResults: null,
-      historyList: []
+      historyList: [],
+      toolsMsg: ""
     };
   },
 
@@ -242,6 +265,22 @@ const AdminDashboard = {
         { credentials: "include" }
       );
       this.searchResults = await r.json();
+    },
+
+    async triggerReminders() {
+      const r = await fetch("/api/admin/trigger-reminders", {
+        method: "POST", credentials: "include"
+      })
+      const data = await r.json()
+      this.toolsMsg = data.message
+    },
+
+    async triggerMonthlyReport() {
+      const r = await fetch("/api/admin/trigger-monthly-report", {
+        method: "POST", credentials: "include"
+      })
+      const data = await r.json()
+      this.toolsMsg = data.message
     }
   }
 };

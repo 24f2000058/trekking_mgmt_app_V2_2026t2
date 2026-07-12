@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_login import current_user
-from extensions import db
-from models import StaffProfile, Trek, Booking
-from routes.helpers import role_required
+from backend.extensions import db
+from backend.models import StaffProfile, Trek, Booking
+from backend.routes.helpers import role_required
 
 staff_bp = Blueprint("staff", __name__, url_prefix="/api/staff")
 
