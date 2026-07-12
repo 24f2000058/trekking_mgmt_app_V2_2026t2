@@ -19,7 +19,10 @@ class Config:
 
     CELERY_BROKER_URL = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
-    # (leave redis db 2 free — reserved for Flask-Caching in Milestone 8)
+
+    CACHE_TYPE = "RedisCache"
+    CACHE_REDIS_URL = "redis://localhost:6379/2"
+    CACHE_DEFAULT_TIMEOUT = 60
 
     GCHAT_WEBHOOK_URL = ""   # paste a Google Chat incoming webhook URL
                               # here to enable real delivery; blank = logs

@@ -13,6 +13,9 @@ def create_app():
     login_manager.init_app(app)
     login_manager.session_protection = "basic"
 
+    from backend.extensions import cache
+    cache.init_app(app)
+
     with app.app_context():
         import backend.models  # noqa: F401 — ensure models are registered before create_all
         db.create_all()

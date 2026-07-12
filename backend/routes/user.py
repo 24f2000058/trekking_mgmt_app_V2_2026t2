@@ -1,6 +1,8 @@
+import time
+
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import current_user
-from backend.extensions import db
+from backend.extensions import db, cache
 from backend.models import Trek, Booking, ExportJob
 from backend.routes.helpers import role_required, login_required_api
 from backend.tasks.jobs import export_booking_history_csv
@@ -11,26 +13,60 @@ user_bp = Blueprint("user", __name__, url_prefix="/api/user")
 @user_bp.route("/treks", methods=["GET"])
 @role_required("trekker")
 def browse_treks():
-    query = Trek.query.filter(Trek.status == "Open")
-
     search = request.args.get("search")
-    if search:
-        like = f"%{search}%"
-        query = query.filter(db.or_(Trek.name.ilike(like), Trek.location.ilike(like)))
-
     difficulty = request.args.get("difficulty")
-    if difficulty:
-        query = query.filter(Trek.difficulty == difficulty)
-
-    duration = request.args.get("duration")
-    if duration:
-        query = query.filter(Trek.duration_days == int(duration))
-
     location = request.args.get("location")
-    if location:
-        query = query.filter(Trek.location.ilike(f"%{location}%"))
+    duration = request.args.get("duration")
 
-    treks = query.order_by(Trek.start_date.asc()).all()
+    cache_key = (
+        "open_treks:"
+        + f"search={search or ''}"
+        + f"|difficulty={difficulty or ''}"
+        + f"|location={location or ''}"
+        + f"|duration={duration or ''}"
+    )
+
+    start_time = time.time()
+    cached_treks = cache.get(cache_key)
+
+    if cached_treks is not None:
+        print(f"[CACHE HIT] {cache_key}")
+        base_treks = cached_treks
+    else:
+        print(f"[CACHE MISS] {cache_key} — querying database")
+        query = Trek.query.filter(Trek.status == "Open")
+
+        if search:
+            like = f"%{search}%"
+            query = query.filter(db.or_(Trek.name.ilike(like), Trek.location.ilike(like)))
+
+        if difficulty:
+            query = query.filter(Trek.difficulty == difficulty)
+
+        if duration:
+            query = query.filter(Trek.duration_days == int(duration))
+
+        if location:
+            query = query.filter(Trek.location.ilike(f"%{location}%"))
+
+        treks = query.order_by(Trek.start_date.asc()).all()
+
+        base_treks = []
+        for trek in treks:
+            base_treks.append({
+                "id": trek.id,
+                "name": trek.name,
+                "location": trek.location,
+                "difficulty": trek.difficulty,
+                "duration_days": trek.duration_days,
+                "total_slots": trek.total_slots,
+                "available_slots": trek.available_slots,
+                "status": trek.status,
+                "start_date": trek.start_date.isoformat() if trek.start_date else None,
+                "end_date": trek.end_date.isoformat() if trek.end_date else None,
+                "description": trek.description or "",
+            })
+        cache.set(cache_key, base_treks, timeout=60)
 
     booked_trek_ids = {
         b.trek_id
@@ -38,21 +74,14 @@ def browse_treks():
     }
 
     result = []
-    for trek in treks:
-        result.append({
-            "id": trek.id,
-            "name": trek.name,
-            "location": trek.location,
-            "difficulty": trek.difficulty,
-            "duration_days": trek.duration_days,
-            "total_slots": trek.total_slots,
-            "available_slots": trek.available_slots,
-            "status": trek.status,
-            "start_date": trek.start_date.isoformat() if trek.start_date else None,
-            "end_date": trek.end_date.isoformat() if trek.end_date else None,
-            "description": trek.description or "",
-            "is_booked": trek.id in booked_trek_ids
-        })
+    for t in base_treks:
+        trek_copy = dict(t)
+        trek_copy["is_booked"] = t["id"] in booked_trek_ids
+        result.append(trek_copy)
+
+    elapsed = round((time.time() - start_time) * 1000, 2)
+    print(f"[TIMING] /api/user/treks resolved in {elapsed}ms")
+
     return jsonify(result)
 
 
@@ -93,6 +122,8 @@ def book_trek(trek_id):
         db.session.add(booking)
 
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
 
     return jsonify({
         "message": "Trek booked successfully!",
@@ -149,6 +180,8 @@ def cancel_booking(booking_id):
         .values(available_slots=Trek.available_slots + 1)
     )
     db.session.commit()
+    cache.clear()
+    print("[CACHE CLEARED] due to trek/booking data change")
 
     return jsonify({"message": "Booking cancelled. Slot has been restored."})
 

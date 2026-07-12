@@ -66,6 +66,43 @@ without any external credentials:
 Paste a real Google Chat incoming webhook URL / SMTP credentials into
 `backend/config.py` to enable real delivery instead.
 
+### Caching (Redis + Flask-Caching)
+
+Milestone 8 caches the two most frequently-hit read endpoints:
+
+- `GET /api/user/treks` — the shared, user-independent trek fields are
+  cached per filter combination (`search`/`difficulty`/`location`/`duration`)
+  for **60s**; the per-user `is_booked` flag is always computed fresh from
+  the current user's bookings on every request, never from cache.
+- `GET /api/admin/stats` — the full stats response is cached as a single
+  key for **30s** (shorter TTL since dashboard stats change more often
+  across the whole app).
+
+Both use Flask-Caching's Redis backend (`CACHE_REDIS_URL` = db 2, separate
+from the Celery broker/result-backend dbs 0/1) with manual `cache.get()` /
+`cache.set()` calls inside the routes rather than the `@cache.cached`
+decorator — this is what makes it safe to cache the shared trek data while
+still computing `is_booked` per logged-in user.
+
+**Invalidation strategy:** rather than tracking every possible cache key
+combination, any write operation that could change trek or booking data
+(trek create/update/delete/approve/assign-staff, slot/status changes,
+book/cancel) calls `cache.clear()` right after `db.session.commit()`,
+wiping the entire cache. This is a deliberate simplicity trade-off
+appropriate for this app's size, favoring correctness over cache hit-rate
+optimization.
+
+Useful commands for inspecting/resetting the cache during grading/demo:
+
+```bash
+redis-cli -n 2 keys '*'      # see live cache keys (db 2)
+redis-cli -n 2 flushdb       # clear the cache manually
+```
+
+The Flask server console also logs `[CACHE HIT]` / `[CACHE MISS]` /
+`[CACHE CLEARED]` / `[TIMING] ... resolved in Xms` lines for each request
+to these two endpoints, useful for demonstrating the caching behavior live.
+
 ### Demo admin credentials (for local development only — change in production)
 
 | Field    | Value           |
@@ -79,7 +116,7 @@ Paste a real Google Chat incoming webhook URL / SMTP credentials into
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2, 3, 4, 5, 6, 7**
+**Completed milestones: 0, 1, 2, 3, 4, 5, 6, 7, 8**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -136,3 +173,9 @@ Paste a real Google Chat incoming webhook URL / SMTP credentials into
   - Frontend: `MyBookings` gained an "Export as CSV" button that polls the status endpoint every 2 seconds and shows a download link on completion; `AdminDashboard`'s Overview tab gained an "Admin Tools" card with the two manual trigger buttons.
   - Note: Google Chat webhooks post to a single Space (not individual DMs — that would require Workspace OAuth), so "reminders to users" means one message per booking, naming the trekker, posted to that shared Space.
   - See "Running background jobs (Celery + Redis)" above for the local run instructions.
+
+- **Milestone 8** — API performance optimization and caching:
+  - `backend/extensions.py` gained a `cache = Cache()` (Flask-Caching) instance, initialized in `create_app()` with `CACHE_TYPE = "RedisCache"` pointed at Redis db 2 (left free for this purpose since Milestone 7).
+  - `GET /api/user/treks` and `GET /api/admin/stats` now check Redis first via manual `cache.get()`/`cache.set()` calls (not the `@cache.cached` decorator), since the treks response mixes shared trek data with a per-user `is_booked` flag that can never be cached — see "Caching" above for the full design rationale, TTLs, and invalidation strategy.
+  - Every trek/booking-mutating route across `admin_bp`, `staff_bp`, and `user_bp` now calls `cache.clear()` immediately after its `db.session.commit()`, so stale cached data is never served after a write.
+  - No frontend or API-contract changes — this milestone is purely a backend performance optimization.
