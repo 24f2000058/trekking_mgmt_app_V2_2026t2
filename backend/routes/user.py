@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_login import current_user
-from extensions import db
-from models import Trek, Booking
-from routes.helpers import role_required, login_required_api
+from backend.extensions import db
+from backend.models import Trek, Booking, ExportJob
+from backend.routes.helpers import role_required, login_required_api
+from backend.tasks.jobs import export_booking_history_csv
 
 user_bp = Blueprint("user", __name__, url_prefix="/api/user")
 
@@ -189,3 +190,48 @@ def update_profile():
 
     db.session.commit()
     return jsonify({"message": "Profile updated successfully."})
+
+
+@user_bp.route("/export-bookings", methods=["POST"])
+@role_required("trekker")
+def export_bookings():
+    job = ExportJob(user_id=current_user.id, status="Pending")
+    db.session.add(job)
+    db.session.commit()
+
+    export_booking_history_csv.delay(job.id)
+
+    return jsonify({"message": "Export started", "job_id": job.id}), 202
+
+
+@user_bp.route("/export-bookings/<int:job_id>/status", methods=["GET"])
+@role_required("trekker")
+def export_bookings_status(job_id):
+    job = ExportJob.query.filter_by(id=job_id, user_id=current_user.id).first()
+    if not job:
+        return jsonify({"error": "Export job not found"}), 404
+
+    return jsonify({
+        "job_id": job.id,
+        "status": job.status,
+        "error_message": job.error_message,
+        "download_url": f"/api/user/export-bookings/{job.id}/download"
+                         if job.status == "Completed" else None
+    }), 200
+
+
+@user_bp.route("/export-bookings/<int:job_id>/download", methods=["GET"])
+@role_required("trekker")
+def export_bookings_download(job_id):
+    job = ExportJob.query.filter_by(id=job_id, user_id=current_user.id).first()
+    if not job:
+        return jsonify({"error": "Export job not found"}), 404
+
+    if job.status != "Completed":
+        return jsonify({"error": "Export not ready yet"}), 400
+
+    return send_file(
+        job.file_path,
+        as_attachment=True,
+        download_name=f"trekking_history_{current_user.id}.csv"
+    )

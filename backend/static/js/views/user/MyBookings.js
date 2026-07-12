@@ -17,6 +17,20 @@ const MyBookings = {
         </div>
       </div>
 
+      <div class="mb-3">
+        <button class="btn btn-sm btn-outline-primary"
+                :disabled="exporting"
+                @click="startExport()">
+          {{ exporting ? 'Preparing export...' : '⬇ Export as CSV' }}
+        </button>
+        <div v-if="exportMsg" class="alert mt-2 py-2"
+             :class="exportError ? 'alert-danger' : 'alert-success'">
+          {{ exportMsg }}
+          <a v-if="exportDownloadUrl" :href="exportDownloadUrl"
+             class="alert-link ms-2" target="_blank">Download CSV</a>
+        </div>
+      </div>
+
       <p v-if="loading" class="text-muted">Loading bookings...</p>
 
       <div v-else-if="bookings.length === 0" class="alert alert-info">
@@ -128,11 +142,20 @@ const MyBookings = {
         { label: "Cancelled", value: "Cancelled" }
       ],
       feedbackMsg: "",
-      feedbackError: false
+      feedbackError: false,
+      exporting: false,
+      exportMsg: "",
+      exportError: false,
+      exportDownloadUrl: null,
+      exportPollTimer: null
     }
   },
 
   created() { this.fetchBookings() },
+
+  beforeUnmount() {
+    if (this.exportPollTimer) clearTimeout(this.exportPollTimer)
+  },
 
   methods: {
     setTab(value) {
@@ -170,6 +193,49 @@ const MyBookings = {
       this.feedbackMsg = data.message
       this.feedbackError = false
       this.fetchBookings()
+    },
+
+    async startExport() {
+      this.exporting = true
+      this.exportMsg = ""
+      this.exportDownloadUrl = null
+      const r = await fetch("/api/user/export-bookings", {
+        method: "POST", credentials: "include"
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        this.exportMsg = data.error
+        this.exportError = true
+        this.exporting = false
+        return
+      }
+      this.pollExportStatus(data.job_id, 0)
+    },
+
+    pollExportStatus(jobId, attempt) {
+      if (attempt > 30) {   // ~60 seconds max
+        this.exporting = false
+        this.exportMsg = "Export is taking longer than expected. Please try again shortly."
+        this.exportError = true
+        return
+      }
+      this.exportPollTimer = setTimeout(async () => {
+        const r = await fetch(`/api/user/export-bookings/${jobId}/status`,
+          { credentials: "include" })
+        const data = await r.json()
+        if (data.status === "Completed") {
+          this.exporting = false
+          this.exportMsg = "Your export is ready!"
+          this.exportError = false
+          this.exportDownloadUrl = data.download_url
+        } else if (data.status === "Failed") {
+          this.exporting = false
+          this.exportMsg = "Export failed: " + (data.error_message || "unknown error")
+          this.exportError = true
+        } else {
+          this.pollExportStatus(jobId, attempt + 1)
+        }
+      }, 2000)
     }
   }
 }

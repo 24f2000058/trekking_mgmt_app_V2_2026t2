@@ -12,6 +12,9 @@ build/
 backend/instance/
 *.db
 *.sqlite3
+backend/exports/
+backend/reports/
+backend/logs/
 
 # Celery
 celerybeat-schedule

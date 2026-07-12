@@ -1,9 +1,10 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func
-from extensions import db
-from models import User, StaffProfile, Trek, Booking
-from routes.helpers import role_required
+from backend.extensions import db
+from backend.models import User, StaffProfile, Trek, Booking
+from backend.routes.helpers import role_required
+from backend.tasks.jobs import send_daily_reminders, generate_monthly_report
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -349,6 +350,24 @@ def trek_history():
             "total_ever_booked": total_ever_booked,
         })
     return jsonify(result), 200
+
+
+@admin_bp.route("/trigger-reminders", methods=["POST"])
+@role_required("admin")
+def trigger_reminders():
+    send_daily_reminders.delay()
+    return jsonify({
+        "message": "Reminder job triggered. Check logs/gchat_log.txt or your configured Google Chat space shortly."
+    }), 202
+
+
+@admin_bp.route("/trigger-monthly-report", methods=["POST"])
+@role_required("admin")
+def trigger_monthly_report():
+    generate_monthly_report.delay()
+    return jsonify({
+        "message": "Monthly report job triggered. Check the reports/ folder or admin email shortly."
+    }), 202
 
 
 @admin_bp.route("/search", methods=["GET"])

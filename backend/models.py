@@ -1,7 +1,7 @@
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from extensions import db
+from backend.extensions import db
 
 
 class User(db.Model, UserMixin):
@@ -70,3 +70,17 @@ class Booking(db.Model):
     __table_args__ = (
         db.UniqueConstraint("user_id", "trek_id", name="uq_user_trek"),
     )
+
+
+class ExportJob(db.Model):
+    __tablename__ = "export_job"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    status = db.Column(db.String(20), default="Pending")  # Pending / Completed / Failed
+    file_path = db.Column(db.String(255), nullable=True)
+    error_message = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref="export_jobs")

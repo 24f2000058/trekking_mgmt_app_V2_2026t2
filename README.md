@@ -34,6 +34,38 @@ python backend/create_admin.py
 python backend/run.py
 ```
 
+### Running background jobs (Celery + Redis)
+
+Milestone 7 adds three background jobs (daily trek reminders, monthly admin
+report, async CSV export) that run via Celery, with Celery Beat handling the
+recurring schedule. A full local demo needs three terminals running at once,
+all from the repository root (the folder containing `backend/`):
+
+```bash
+# Terminal 1 — Redis (message broker + result backend)
+redis-server
+
+# Terminal 2 — Flask app
+python backend/run.py
+
+# Terminal 3 — Celery worker + beat scheduler (combined, simplest for local dev)
+celery -A backend.tasks.celery_app.celery worker --beat --loglevel=info
+```
+
+> **Windows users:** add `--pool=solo` if the worker fails to start:
+> `celery -A backend.tasks.celery_app.celery worker --beat --loglevel=info --pool=solo`
+
+By default `GCHAT_WEBHOOK_URL` and `SMTP_HOST` in `backend/config.py` are left
+blank, so the reminder and report jobs write their output to local files
+instead of making real network calls — this keeps the demo fully runnable
+without any external credentials:
+- Reminder messages: `backend/logs/gchat_log.txt`
+- Monthly report: an HTML file in `backend/reports/`
+- CSV exports: `backend/exports/`
+
+Paste a real Google Chat incoming webhook URL / SMTP credentials into
+`backend/config.py` to enable real delivery instead.
+
 ### Demo admin credentials (for local development only — change in production)
 
 | Field    | Value           |
@@ -47,7 +79,7 @@ python backend/run.py
 
 ## Current Status
 
-**Completed milestones: 0, 1, 2, 3, 4, 5, 6**
+**Completed milestones: 0, 1, 2, 3, 4, 5, 6, 7**
 
 - **Milestone 0** — Project scaffold (Flask app factory, config, folder layout).
 - **Milestone 1** — Database models (`User`, `StaffProfile`, `Trek`, `Booking`) and programmatic admin creation.
@@ -90,3 +122,17 @@ python backend/run.py
   - **Trek status transition guards** — treks must now move `Pending → Approved → Open → Closed → Completed` in order: admin can only approve `Pending` treks, staff cannot change the status of a not-yet-approved or already-`Completed` trek, and admin's general trek-update endpoint rejects any `status` change on a `Completed` trek (other fields remain editable).
   - **Trek deletion protection** — `DELETE /api/admin/treks/<id>` now refuses (409) to delete a trek that has any booking history (`Booked`, `Cancelled`, or `Completed`), preserving trekking history; only treks with zero bookings can be deleted.
   - **Admin trek history view** — new `GET /api/admin/history` endpoint lists all `Completed` treks with per-trek completed/cancelled/total-booked counts, surfaced in the Admin dashboard under a new "History" tab.
+
+- **Milestone 7** — Background jobs via Celery + Redis:
+  - `backend/tasks/celery_app.py` — Celery app instance (broker/backend = Redis DBs 0/1) with a Celery Beat schedule: daily trek reminders at 08:00 UTC, monthly admin report on the 1st at 06:00 UTC.
+  - `backend/tasks/notify.py` — dependency-free `send_gchat_message()` / `send_email()` helpers; each falls back to writing to a local file (`backend/logs/`, `backend/reports/`) when no webhook URL / SMTP host is configured, so the demo runs without external credentials.
+  - Three Celery tasks in `backend/tasks/jobs.py`:
+    - `send_daily_reminders` — finds all `Booked` bookings for treks starting exactly `REMINDER_DAYS_BEFORE` (default 3) days out and posts one Google Chat message per booking (naming the trekker) to the configured Space.
+    - `generate_monthly_report` — builds an HTML summary (treks conducted, participants, top treks by bookings) for the previous calendar month and emails it to the admin.
+    - `export_booking_history_csv(export_job_id)` — writes the calling user's full booking history to a CSV file and updates the corresponding `ExportJob` row.
+  - New `ExportJob` model tracks user-triggered CSV export jobs (`Pending` / `Completed` / `Failed`) so the frontend can poll for completion.
+  - New user endpoints (`role_required("trekker")`): `POST /api/user/export-bookings` (enqueues the export), `GET /api/user/export-bookings/<id>/status` (poll target), `GET /api/user/export-bookings/<id>/download` (serves the finished CSV).
+  - New admin endpoints (`role_required("admin")`): `POST /api/admin/trigger-reminders` and `POST /api/admin/trigger-monthly-report` — manual "run now" triggers for demo/testing; the real production trigger is the Celery Beat schedule above.
+  - Frontend: `MyBookings` gained an "Export as CSV" button that polls the status endpoint every 2 seconds and shows a download link on completion; `AdminDashboard`'s Overview tab gained an "Admin Tools" card with the two manual trigger buttons.
+  - Note: Google Chat webhooks post to a single Space (not individual DMs — that would require Workspace OAuth), so "reminders to users" means one message per booking, naming the trekker, posted to that shared Space.
+  - See "Running background jobs (Celery + Redis)" above for the local run instructions.
